@@ -4,28 +4,45 @@
 
 ## 功能
 
-| 触发器 | Issue 类型 | Skill | 功能 |
-|--------|-----------|-------|------|
-| Issue 创建 | `bug` 标签 | `issue-analyze` | 分析 Bug，定位根因，自动修复 |
-| Issue 创建 | `enhancement` 标签 | `feature-plan` | 技术评估，方案设计，工作量预估 |
+| 触发器 | 条件 | Skill | 功能 |
+|--------|------|-------|------|
+| Issue 创建 | `bug` 标签 | `issue-analyze` | 分析 Bug，定位根因 |
+| Issue 创建 | `enhancement` 标签 | `feature-plan` | 技术评估，方案设计 |
+| Issue 评论 | 以 `OK` 开头 | `issue-implement` | 实现代码，创建 PR |
 | PR 创建/更新 | - | `pr-review` | 代码审查 |
+
+## 完整工作流程
+
+```
+1. 创建 Issue（Bug 或需求）
+        ↓
+2. Claude 自动分析，发布技术方案
+        ↓
+3. 用户评论 "OK" 或 "OK 补充说明..."
+        ↓
+4. Claude 实现代码，创建 PR
+        ↓
+5. Claude 自动审查 PR
+```
 
 ## 项目结构
 
 ```
 .
 ├── .claude/skills/
-│   ├── issue-analyze/SKILL.md    # Bug 分析
-│   ├── feature-plan/SKILL.md     # 需求评估
-│   └── pr-review/SKILL.md        # PR 审查
+│   ├── issue-analyze/SKILL.md     # Bug 分析
+│   ├── feature-plan/SKILL.md      # 需求评估
+│   ├── issue-implement/SKILL.md   # 代码实现
+│   └── pr-review/SKILL.md         # PR 审查
 ├── .github/
 │   ├── ISSUE_TEMPLATE/
-│   │   ├── bug_report.yml        # Bug 报告 → 触发 issue-analyze
-│   │   ├── prd.yml               # 需求/PRD → 触发 feature-plan
-│   │   └── feature_request.yml   # 功能请求 → 触发 feature-plan
+│   │   ├── bug_report.yml         # Bug 报告
+│   │   ├── prd.yml                # 需求/PRD
+│   │   └── feature_request.yml    # 功能请求
 │   └── workflows/
-│       ├── issue-analyze.yml     # Issue 分析（根据标签分发）
-│       └── pr-review.yml         # PR 审查
+│       ├── issue-analyze.yml      # Issue 分析
+│       ├── issue-implement.yml    # Issue 实现
+│       └── pr-review.yml          # PR 审查
 └── README.md
 ```
 
@@ -46,49 +63,33 @@
 
 ### 3. 开始使用
 
-- **报告 Bug**：New Issue → Bug Report
-- **提交需求**：New Issue → 需求/PRD
-- **代码审查**：提交 PR 自动触发
+1. **创建 Issue**：选择 Bug Report 或 需求/PRD 模板
+2. **等待分析**：Claude 自动分析并发布方案
+3. **确认实现**：评论 `OK` 或 `OK 需要补充的说明`
+4. **等待 PR**：Claude 实现代码并创建 PR
+5. **审查合并**：PR 自动触发代码审查
 
-## 工作流程
+## 确认命令
 
-```
-Issue 创建
-    │
-    ├─ 标签含 "bug" ──────→ issue-analyze skill
-    │                           ├─ 问题分类
-    │                           ├─ 根因分析
-    │                           └─ 自动修复（low/medium）
-    │
-    └─ 标签含 "enhancement" ─→ feature-plan skill
-                                ├─ 技术方案
-                                ├─ 工作量预估
-                                └─ 爆炸半径评估
-```
+在 Issue 评论中使用：
 
-## 结构化输出示例
+| 命令 | 说明 |
+|------|------|
+| `OK` | 确认方案，开始实现 |
+| `OK 使用 TypeScript` | 确认并补充要求 |
+| `OK 先只实现核心功能` | 确认并限定范围 |
 
-### Bug 分析
+## 结构化输出
+
+### Issue 实现
 ```json
 {
-  "issue_type": "bug",
-  "severity": "medium",
-  "root_cause": "src/utils.ts:42 未处理空值",
-  "auto_fixed": true,
-  "branch_name": "fix/issue-123"
-}
-```
-
-### 需求评估
-```json
-{
-  "requirement_summary": "添加 OAuth 登录",
-  "scope": "medium",
-  "blast_radius": "contained",
-  "implementation_steps": [
-    {"step": "安装依赖", "complexity": "simple"},
-    {"step": "创建 OAuth 模块", "complexity": "moderate"}
-  ]
+  "status": "success",
+  "branch_name": "feat/issue-123",
+  "pr_number": 456,
+  "pr_url": "https://github.com/owner/repo/pull/456",
+  "files_changed": ["src/auth.ts", "src/utils.ts"],
+  "summary": "实现 OAuth 登录功能"
 }
 ```
 
@@ -98,18 +99,12 @@ Issue 创建
 
 编辑 `.claude/skills/{name}/SKILL.md`
 
-### 添加新 Skill
+### 修改确认命令
 
-```bash
-mkdir -p .claude/skills/my-skill
-cat > .claude/skills/my-skill/SKILL.md << 'EOF'
----
-name: my-skill
-description: 描述功能和使用场景
----
+编辑 `.github/workflows/issue-implement.yml` 中的触发条件：
 
-# Skill 内容
-EOF
+```yaml
+if: startsWith(toLower(github.event.comment.body), 'ok')
 ```
 
 ## 许可证

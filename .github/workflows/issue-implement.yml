@@ -1,0 +1,108 @@
+name: Issue Implementation
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  implement:
+    # 只处理以 "OK" 开头的评论（不区分大小写）
+    if: |
+      github.event.issue.pull_request == null &&
+      startsWith(toLower(github.event.comment.body), 'ok')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Extract Additional Instructions
+        id: extract
+        run: |
+          COMMENT='${{ github.event.comment.body }}'
+          # 移除开头的 OK/ok 并提取补充内容
+          ADDITIONAL=$(echo "$COMMENT" | sed -E 's/^[Oo][Kk]\s*//')
+          echo "additional=$ADDITIONAL" >> $GITHUB_OUTPUT
+
+      - name: Implement Feature/Fix
+        id: implement
+        uses: anthropics/claude-code-action@v1
+        env:
+          ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
+        with:
+          github_token: ${{ github.token }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            用户已确认方案，请开始实现。
+
+            ## Issue 信息
+            - **标题**: ${{ github.event.issue.title }}
+            - **编号**: #${{ github.event.issue.number }}
+            - **内容**:
+            ${{ github.event.issue.body }}
+
+            ## 用户补充说明
+            ${{ steps.extract.outputs.additional }}
+
+            ## 任务要求
+
+            1. **阅读之前的分析评论**
+               使用 `gh issue view ${{ github.event.issue.number }} --comments` 查看之前的技术分析
+
+            2. **创建分支**
+               - Bug: `fix/issue-${{ github.event.issue.number }}`
+               - Feature: `feat/issue-${{ github.event.issue.number }}`
+
+            3. **实现代码**
+               按照之前分析的方案实现代码
+
+            4. **提交并推送**
+               ```bash
+               git add .
+               git commit -m "类型: 简要描述 (#${{ github.event.issue.number }})"
+               git push -u origin 分支名
+               ```
+
+            5. **创建 PR**
+               使用 `gh pr create` 创建 PR，关联 Issue：
+               - 标题包含 Issue 编号
+               - Body 中添加 `Closes #${{ github.event.issue.number }}`
+
+            6. **回复 Issue**
+               使用 `gh issue comment` 告知用户 PR 已创建
+
+            ## 注意事项
+            - 所有输出使用简体中文
+            - 确保代码质量，添加必要的错误处理
+            - 如果实现过程中发现问题，在 Issue 评论中说明
+          claude_args: |
+            --allowedTools "Bash(gh:*),Bash(git:*),Read,Write,Edit,Glob,Grep,Task"
+            --json-schema '{
+              "type": "object",
+              "properties": {
+                "status": {"type": "string", "enum": ["success", "failed", "blocked"]},
+                "branch_name": {"type": "string"},
+                "pr_number": {"type": "integer"},
+                "pr_url": {"type": "string"},
+                "files_changed": {"type": "array", "items": {"type": "string"}},
+                "summary": {"type": "string"}
+              },
+              "required": ["status", "summary"]
+            }'
+
+      - name: Output Result
+        if: always()
+        run: |
+          echo "## Implementation Result" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          echo '${{ steps.implement.outputs.structured_output }}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+    outputs:
+      structured_output: ${{ steps.implement.outputs.structured_output }}
