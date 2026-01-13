@@ -18,8 +18,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Analyze Issue with Claude
-        id: analyze
+      - name: Determine Issue Type
+        id: issue-type
+        run: |
+          LABELS='${{ toJSON(github.event.issue.labels.*.name) }}'
+          if echo "$LABELS" | grep -q "bug"; then
+            echo "type=bug" >> $GITHUB_OUTPUT
+            echo "skill=issue-analyze" >> $GITHUB_OUTPUT
+          elif echo "$LABELS" | grep -q "enhancement"; then
+            echo "type=feature" >> $GITHUB_OUTPUT
+            echo "skill=feature-plan" >> $GITHUB_OUTPUT
+          else
+            echo "type=other" >> $GITHUB_OUTPUT
+            echo "skill=issue-analyze" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Analyze Bug Issue
+        if: steps.issue-type.outputs.type == 'bug'
+        id: analyze-bug
         uses: anthropics/claude-code-action@v1
         env:
           ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
@@ -27,7 +43,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
-            使用 issue-analyze skill 分析以下 Issue。
+            使用 issue-analyze skill 分析以下 Bug Issue。
 
             ## Issue 信息
             - **标题**: ${{ github.event.issue.title }}
@@ -42,64 +58,85 @@ jobs:
             --json-schema '{
               "type": "object",
               "properties": {
-                "issue_type": {
-                  "type": "string",
-                  "enum": ["bug", "feature", "question", "documentation"]
-                },
-                "severity": {
-                  "type": "string",
-                  "enum": ["critical", "high", "medium", "low", "N/A"]
-                },
-                "root_cause": {
-                  "type": "string",
-                  "description": "问题根因分析"
-                },
-                "affected_files": {
-                  "type": "array",
-                  "items": {"type": "string"},
-                  "description": "受影响的文件列表"
-                },
-                "fix_complexity": {
-                  "type": "string",
-                  "enum": ["simple", "moderate", "complex"],
-                  "description": "修复复杂度"
-                },
-                "auto_fixed": {
-                  "type": "boolean",
-                  "description": "是否已自动修复"
-                },
-                "branch_name": {
-                  "type": "string",
-                  "description": "创建的修复分支名称"
-                },
-                "pr_url": {
-                  "type": "string",
-                  "description": "PR 创建链接"
-                },
-                "summary": {
-                  "type": "string",
-                  "description": "简要总结"
-                }
+                "issue_type": {"type": "string", "enum": ["bug", "feature", "question", "documentation"]},
+                "severity": {"type": "string", "enum": ["critical", "high", "medium", "low", "N/A"]},
+                "root_cause": {"type": "string"},
+                "affected_files": {"type": "array", "items": {"type": "string"}},
+                "fix_complexity": {"type": "string", "enum": ["simple", "moderate", "complex"]},
+                "auto_fixed": {"type": "boolean"},
+                "branch_name": {"type": "string"},
+                "summary": {"type": "string"}
               },
               "required": ["issue_type", "severity", "root_cause", "summary"]
             }'
 
-      - name: Output Structured Result
+      - name: Analyze Feature Issue
+        if: steps.issue-type.outputs.type == 'feature'
+        id: analyze-feature
+        uses: anthropics/claude-code-action@v1
+        env:
+          ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            使用 feature-plan skill 评估以下需求 Issue。
+
+            ## Issue 信息
+            - **标题**: ${{ github.event.issue.title }}
+            - **编号**: #${{ github.event.issue.number }}
+            - **作者**: ${{ github.event.issue.user.login }}
+            - **内容**:
+            ${{ github.event.issue.body }}
+
+            请按照 skill 中的流程执行评估，并使用 `gh issue comment` 发布技术评估报告。
+          claude_args: |
+            --allowedTools "Bash(gh issue comment:*),Bash(gh issue edit:*),Read,Glob,Grep,Task"
+            --json-schema '{
+              "type": "object",
+              "properties": {
+                "requirement_summary": {"type": "string"},
+                "feature_points": {"type": "array", "items": {"type": "string"}},
+                "recommended_approach": {
+                  "type": "object",
+                  "properties": {
+                    "name": {"type": "string"},
+                    "description": {"type": "string"},
+                    "pros": {"type": "array", "items": {"type": "string"}},
+                    "cons": {"type": "array", "items": {"type": "string"}}
+                  }
+                },
+                "scope": {"type": "string", "enum": ["small", "medium", "large", "extra-large"]},
+                "estimated_files": {"type": "integer"},
+                "blast_radius": {"type": "string", "enum": ["isolated", "contained", "moderate", "wide"]},
+                "implementation_steps": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "step": {"type": "string"},
+                      "complexity": {"type": "string", "enum": ["simple", "moderate", "complex"]}
+                    }
+                  }
+                }
+              },
+              "required": ["requirement_summary", "recommended_approach", "scope", "blast_radius"]
+            }'
+
+      - name: Output Result
         if: always()
         run: |
           echo "## Issue Analysis Result" >> $GITHUB_STEP_SUMMARY
+          echo "**Type**: ${{ steps.issue-type.outputs.type }}" >> $GITHUB_STEP_SUMMARY
           echo '```json' >> $GITHUB_STEP_SUMMARY
-          echo '${{ steps.analyze.outputs.structured_output }}' >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.issue-type.outputs.type }}" == "bug" ]; then
+            echo '${{ steps.analyze-bug.outputs.structured_output }}' >> $GITHUB_STEP_SUMMARY
+          else
+            echo '${{ steps.analyze-feature.outputs.structured_output }}' >> $GITHUB_STEP_SUMMARY
+          fi
           echo '```' >> $GITHUB_STEP_SUMMARY
 
-      - name: Export Analysis Result
-        if: always()
-        id: export
-        run: |
-          echo "ANALYSIS_RESULT<<EOF" >> $GITHUB_OUTPUT
-          echo '${{ steps.analyze.outputs.structured_output }}' >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
     outputs:
-      structured_output: ${{ steps.analyze.outputs.structured_output }}
-      analysis_result: ${{ steps.export.outputs.ANALYSIS_RESULT }}
+      issue_type: ${{ steps.issue-type.outputs.type }}
+      bug_output: ${{ steps.analyze-bug.outputs.structured_output }}
+      feature_output: ${{ steps.analyze-feature.outputs.structured_output }}

@@ -1,11 +1,12 @@
+name: 需求/PRD
+description: 提交产品需求，将自动触发 Claude 进行技术评估
 title: "[需求]: "
-labels:
-  - enhancement
+labels: ["enhancement", "needs-analysis"]
 body:
   - type: markdown
     attributes:
       value: |
-        感谢你提交产品需求！提交后，Claude 将自动评估此需求的技术可行性，并提供实现方案和工作量预估。
+        感谢你提交产品需求！提交后，Claude 将自动评估技术可行性，并提供实现方案和工作量预估。
 
   - type: textarea
     id: background
@@ -15,7 +16,6 @@ body:
       placeholder: |
         为什么需要这个功能？
         解决什么问题？
-        目标用户是谁？
     validations:
       required: true
 
@@ -35,34 +35,22 @@ body:
     id: acceptance
     attributes:
       label: 验收标准
-      description: 如何验证这个功能已正确实现？
+      description: 如何验证功能已正确实现？
       placeholder: |
         - [ ] 条件1满足时...
         - [ ] 用户能够...
-        - [ ] 系统正确处理...
 
   - type: textarea
     id: design
     attributes:
-      label: 设计稿/原型
-      description: 如有设计稿或原型，请在此上传或提供链接
-      placeholder: 拖拽图片到此处上传，或粘贴链接...
-
-  - type: textarea
-    id: technical
-    attributes:
-      label: 技术约束（可选）
-      description: 是否有技术限制或偏好？
-      placeholder: |
-        - 必须使用某个库/框架
-        - 需要兼容某个版本
-        - 性能要求等
+      label: 设计稿/原型（可选）
+      description: 如有设计稿或原型，请上传或提供链接
+      placeholder: 拖拽图片到此处上传...
 
   - type: dropdown
     id: priority
     attributes:
       label: 优先级
-      description: 这个需求的优先级是？
       options:
         - P0 - 紧急
         - P1 - 高
@@ -70,10 +58,3 @@ body:
         - P3 - 低
     validations:
       required: true
-
-  - type: textarea
-    id: additional
-    attributes:
-      label: 补充信息
-      description: 任何其他有助于理解此需求的信息
-      placeholder: 其他相关信息...
