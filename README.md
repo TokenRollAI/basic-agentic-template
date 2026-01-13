@@ -104,7 +104,9 @@
 编辑 `.github/workflows/issue-implement.yml` 中的触发条件：
 
 ```yaml
-if: startsWith(toLower(github.event.comment.body), 'ok')
+if: |
+  startsWith(github.event.comment.body, 'OK') ||
+  startsWith(github.event.comment.body, 'ok')
 ```
 
 ## 许可证

@@ -9,7 +9,10 @@ jobs:
     # 只处理以 "OK" 开头的评论（不区分大小写）
     if: |
       github.event.issue.pull_request == null &&
-      startsWith(toLower(github.event.comment.body), 'ok')
+      (startsWith(github.event.comment.body, 'OK') ||
+       startsWith(github.event.comment.body, 'ok') ||
+       startsWith(github.event.comment.body, 'Ok') ||
+       startsWith(github.event.comment.body, 'oK'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
