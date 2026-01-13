@@ -1,0 +1,102 @@
+name: PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: PR Review with Claude
+        id: review
+        uses: anthropics/claude-code-action@v1
+        env:
+          ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          use_sticky_comment: true
+          show_full_output: true
+          prompt: |
+            使用 pr-review skill 审查当前 PR。
+
+            ## PR 信息
+            - **仓库**: ${{ github.repository }}
+            - **PR 编号**: #${{ github.event.pull_request.number }}
+            - **标题**: ${{ github.event.pull_request.title }}
+            - **作者**: ${{ github.event.pull_request.user.login }}
+            - **基础分支**: ${{ github.event.pull_request.base.ref }}
+            - **源分支**: ${{ github.event.pull_request.head.ref }}
+
+            请按照 skill 中的审查维度和流程执行审查，并使用 `gh pr comment` 发布审查报告。
+          claude_args: |
+            --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Glob,Grep,Task"
+            --json-schema '{
+              "type": "object",
+              "properties": {
+                "conclusion": {
+                  "type": "string",
+                  "enum": ["APPROVE", "REQUEST_CHANGES", "COMMENT"]
+                },
+                "summary": {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                "critical_count": {
+                  "type": "integer"
+                },
+                "important_count": {
+                  "type": "integer"
+                },
+                "suggestion_count": {
+                  "type": "integer"
+                },
+                "security_issues": {
+                  "type": "array",
+                  "items": {"type": "string"},
+                  "description": "安全相关问题"
+                },
+                "performance_issues": {
+                  "type": "array",
+                  "items": {"type": "string"},
+                  "description": "性能相关问题"
+                },
+                "highlights": {
+                  "type": "array",
+                  "items": {"type": "string"},
+                  "description": "代码亮点"
+                }
+              },
+              "required": ["conclusion", "summary", "critical_count", "important_count", "suggestion_count"]
+            }'
+
+      - name: Output Structured Result
+        if: always()
+        run: |
+          echo "## PR Review Result" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          echo '${{ steps.review.outputs.structured_output }}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Export Review Result
+        if: always()
+        id: export
+        run: |
+          echo "REVIEW_RESULT<<EOF" >> $GITHUB_OUTPUT
+          echo '${{ steps.review.outputs.structured_output }}' >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+    outputs:
+      structured_output: ${{ steps.review.outputs.structured_output }}
+      review_result: ${{ steps.export.outputs.REVIEW_RESULT }}

@@ -1,0 +1,41 @@
+name: Feature Request
+description: 提出新功能需求，将自动触发 Claude 进行技术评估
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢你提出新功能需求！提交后，Claude 将自动评估此需求的技术可行性。
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 问题描述
+      description: 请描述这个功能要解决什么问题
+      placeholder: 我经常遇到这样的问题...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: 期望的解决方案
+      description: 描述你期望的功能是什么样的
+      placeholder: 我希望能够...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 替代方案
+      description: 你考虑过哪些替代方案？
+      placeholder: 我也考虑过...
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 附加信息
+      description: 任何其他有助于理解此需求的信息、截图或设计稿
+      placeholder: 其他相关信息...

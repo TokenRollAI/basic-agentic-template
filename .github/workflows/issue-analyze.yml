@@ -1,0 +1,105 @@
+name: Issue Analysis
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Analyze Issue with Claude
+        id: analyze
+        uses: anthropics/claude-code-action@v1
+        env:
+          ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            使用 issue-analyze skill 分析以下 Issue。
+
+            ## Issue 信息
+            - **标题**: ${{ github.event.issue.title }}
+            - **编号**: #${{ github.event.issue.number }}
+            - **作者**: ${{ github.event.issue.user.login }}
+            - **内容**:
+            ${{ github.event.issue.body }}
+
+            请按照 skill 中的流程执行分析，并使用 `gh issue comment` 发布分析报告。
+          claude_args: |
+            --allowedTools "Bash(gh issue comment:*),Bash(gh issue edit:*),Bash(git:*),Read,Write,Edit,Glob,Grep,Task"
+            --json-schema '{
+              "type": "object",
+              "properties": {
+                "issue_type": {
+                  "type": "string",
+                  "enum": ["bug", "feature", "question", "documentation"]
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": ["critical", "high", "medium", "low", "N/A"]
+                },
+                "root_cause": {
+                  "type": "string",
+                  "description": "问题根因分析"
+                },
+                "affected_files": {
+                  "type": "array",
+                  "items": {"type": "string"},
+                  "description": "受影响的文件列表"
+                },
+                "fix_complexity": {
+                  "type": "string",
+                  "enum": ["simple", "moderate", "complex"],
+                  "description": "修复复杂度"
+                },
+                "auto_fixed": {
+                  "type": "boolean",
+                  "description": "是否已自动修复"
+                },
+                "branch_name": {
+                  "type": "string",
+                  "description": "创建的修复分支名称"
+                },
+                "pr_url": {
+                  "type": "string",
+                  "description": "PR 创建链接"
+                },
+                "summary": {
+                  "type": "string",
+                  "description": "简要总结"
+                }
+              },
+              "required": ["issue_type", "severity", "root_cause", "summary"]
+            }'
+
+      - name: Output Structured Result
+        if: always()
+        run: |
+          echo "## Issue Analysis Result" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          echo '${{ steps.analyze.outputs.structured_output }}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Export Analysis Result
+        if: always()
+        id: export
+        run: |
+          echo "ANALYSIS_RESULT<<EOF" >> $GITHUB_OUTPUT
+          echo '${{ steps.analyze.outputs.structured_output }}' >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+    outputs:
+      structured_output: ${{ steps.analyze.outputs.structured_output }}
+      analysis_result: ${{ steps.export.outputs.ANALYSIS_RESULT }}

@@ -1,0 +1,140 @@
+name: Feature Plan Analysis
+
+on:
+  discussion:
+    types: [created]
+
+jobs:
+  analyze:
+    # 只处理特定分类的 Discussion（根据实际仓库配置调整分类名称）
+    if: |
+      contains(fromJSON('["Ideas", "Feature Request", "RFC", "需求"]'), github.event.discussion.category.name)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      discussions: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Analyze Feature Request with Claude
+        id: analyze
+        uses: anthropics/claude-code-action@v1
+        env:
+          ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            使用 feature-plan skill 评估以下需求文档。
+
+            ## 需求信息
+            - **标题**: ${{ github.event.discussion.title }}
+            - **编号**: #${{ github.event.discussion.number }}
+            - **作者**: ${{ github.event.discussion.user.login }}
+            - **分类**: ${{ github.event.discussion.category.name }}
+            - **内容**:
+            ${{ github.event.discussion.body }}
+
+            请按照 skill 中的流程执行评估，并使用 `gh api` 在 Discussion 下发布技术评估报告。
+          claude_args: |
+            --allowedTools "Bash(gh api:*),Read,Glob,Grep,Task"
+            --json-schema '{
+              "type": "object",
+              "properties": {
+                "requirement_summary": {
+                  "type": "string",
+                  "description": "需求核心摘要"
+                },
+                "feature_points": {
+                  "type": "array",
+                  "items": {"type": "string"},
+                  "description": "关键功能点列表"
+                },
+                "recommended_approach": {
+                  "type": "object",
+                  "properties": {
+                    "name": {"type": "string"},
+                    "description": {"type": "string"},
+                    "pros": {"type": "array", "items": {"type": "string"}},
+                    "cons": {"type": "array", "items": {"type": "string"}}
+                  },
+                  "description": "推荐的技术方案"
+                },
+                "alternative_approaches": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {"type": "string"},
+                      "description": {"type": "string"}
+                    }
+                  },
+                  "description": "备选方案"
+                },
+                "scope": {
+                  "type": "string",
+                  "enum": ["small", "medium", "large", "extra-large"],
+                  "description": "工作量级别"
+                },
+                "estimated_files": {
+                  "type": "integer",
+                  "description": "预估修改文件数"
+                },
+                "affected_modules": {
+                  "type": "array",
+                  "items": {"type": "string"},
+                  "description": "受影响的模块"
+                },
+                "blast_radius": {
+                  "type": "string",
+                  "enum": ["isolated", "contained", "moderate", "wide"],
+                  "description": "爆炸半径"
+                },
+                "risks": {
+                  "type": "array",
+                  "items": {"type": "string"},
+                  "description": "潜在风险"
+                },
+                "implementation_steps": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "step": {"type": "string"},
+                      "complexity": {"type": "string", "enum": ["simple", "moderate", "complex"]}
+                    }
+                  },
+                  "description": "实现步骤"
+                },
+                "clarification_needed": {
+                  "type": "array",
+                  "items": {"type": "string"},
+                  "description": "需要澄清的问题"
+                }
+              },
+              "required": ["requirement_summary", "recommended_approach", "scope", "blast_radius", "implementation_steps"]
+            }'
+
+      - name: Output Structured Result
+        if: always()
+        run: |
+          echo "## Feature Plan Analysis Result" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          echo '${{ steps.analyze.outputs.structured_output }}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Export Analysis Result
+        if: always()
+        id: export
+        run: |
+          echo "ANALYSIS_RESULT<<EOF" >> $GITHUB_OUTPUT
+          echo '${{ steps.analyze.outputs.structured_output }}' >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+    outputs:
+      structured_output: ${{ steps.analyze.outputs.structured_output }}
+      analysis_result: ${{ steps.export.outputs.ANALYSIS_RESULT }}

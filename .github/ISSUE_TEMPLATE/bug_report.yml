@@ -1,0 +1,93 @@
+name: Bug Report
+description: 报告一个 Bug，将自动触发 Claude 分析
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢你提交 Bug 报告！提交后，Claude 将自动分析此问题并提供修复建议。
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug 描述
+      description: 请清晰、简洁地描述这个 Bug
+      placeholder: 描述发生了什么问题...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 复现步骤
+      description: 请提供详细的复现步骤
+      placeholder: |
+        1. 进入 '...'
+        2. 点击 '...'
+        3. 滚动到 '...'
+        4. 看到错误
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+      description: 描述你期望发生什么
+      placeholder: 我期望看到...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+      description: 描述实际发生了什么
+      placeholder: 实际上发生了...
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 截图
+      description: 如果适用，请添加截图来帮助解释你的问题
+      placeholder: 拖拽图片到此处上传...
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: 环境信息
+      description: 请提供相关环境信息
+      placeholder: |
+        - OS: [e.g. Windows 11, macOS 14]
+        - Browser: [e.g. Chrome 120, Safari 17]
+        - Version: [e.g. v1.0.0]
+      render: markdown
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 相关日志
+      description: 如有相关日志或错误信息，请粘贴在这里
+      placeholder: 粘贴日志内容...
+      render: shell
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 附加信息
+      description: 任何其他有助于理解此问题的信息
+      placeholder: 其他相关信息...
+
+  - type: checkboxes
+    id: severity
+    attributes:
+      label: 严重程度（自评）
+      description: 你认为这个 Bug 的严重程度是？
+      options:
+        - label: 🔴 Critical - 导致系统崩溃或数据丢失
+        - label: 🟠 High - 核心功能无法使用
+        - label: 🟡 Medium - 功能受损但有变通方案
+        - label: 🟢 Low - 轻微问题或样式问题

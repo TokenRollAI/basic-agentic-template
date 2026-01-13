@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💡 需求讨论
+    url: ../../discussions/new?category=ideas
+    about: 提交完整的需求文档（PRD），获取 Claude 的技术评估报告
+  - name: ❓ 问答
+    url: ../../discussions/new?category=q-a
+    about: 提问或寻求帮助
